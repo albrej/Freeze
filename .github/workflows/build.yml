@@ -3,7 +3,7 @@ name: Build APK
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Permet de lancer le bouton manuellement si besoin
+  workflow_dispatch:
 
 jobs:
   build:
@@ -24,7 +24,7 @@ jobs:
         key: buildozer-global-${{ runner.os }}-${{ steps.get-date.outputs.date }}
 
     - name: Build with Buildozer
-      uses: Android-Actions/buildozer-action@v1
+      uses: android-actions/buildozer-action@v1
       with:
         repository_root: .
         buildozer_version: stable
