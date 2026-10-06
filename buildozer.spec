@@ -1,6 +1,6 @@
 [app]
-title = Bubu GPS
-package.name = outilstraces
+title = Freeze Screen
+package.name = freezescreen
 package.domain = org.perso
 
 source.dir = .
@@ -23,7 +23,7 @@ version = 0.2
 requirements = python3==3.11.8,hostpython3==3.11.8,kivy==2.3.1,gpxpy,kivy_garden.mapview,piexif
 
 orientation = all
-icon.filename = %(source.dir)s/Icone.png
+# icon.filename = %(source.dir)s/Icone.png
 fullscreen = 0
 
 # Permissions : accès large au stockage (comme le faisait le script
