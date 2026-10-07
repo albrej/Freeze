@@ -11,7 +11,7 @@ requirements = python3,kivy==2.3.1,pyjnius
 p4a.branch = v2024.01.21
 
 orientation = portrait
-
+icon.filename = %(source.dir)s/Icone.png
 fullscreen = 0
 
 android.permissions = SYSTEM_ALERT_WINDOW
