@@ -14,7 +14,7 @@ orientation = portrait
 
 fullscreen = 0
 
-android.permissions = SYSTEM_ALERT_WINDOW
+android.permissions =
 
 android.api = 34
 android.minapi = 24
