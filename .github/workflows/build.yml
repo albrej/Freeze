@@ -32,7 +32,7 @@ jobs:
             cmake libffi-dev libssl-dev
 
       - name: Installer buildozer
-        run: pip install buildozer==1.5.0 cython==0.29.36 setuptools
+        run: pip install buildozer==1.5.0 cython==0.29.36 setuptools virtualenv
 
       - name: Cache buildozer
         uses: actions/cache@v4
@@ -46,6 +46,11 @@ jobs:
         run: |
           echo "JAVA_HOME=$JAVA_HOME"
           java -version
+
+      - name: Purger le venv p4a en cache (fix pip spinner)
+        run: |
+          rm -rf .buildozer/android/platform/build-*/build/venv 2>/dev/null || true
+          find ~/.buildozer .buildozer -type d -name "venv" -exec rm -rf {} + 2>/dev/null || true
 
       - name: Build de l'APK
         run: |
