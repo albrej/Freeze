@@ -31,7 +31,7 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}-v3
           restore-keys: ${{ runner.os }}-buildozer-
 
       - name: Build de l'APK
