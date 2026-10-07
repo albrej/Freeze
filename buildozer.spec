@@ -10,7 +10,7 @@ version = 1.0
 requirements = python3,kivy==2.3.1,pyjnius
 p4a.branch = v2024.01.21
 
-orientation = all
+orientation = portrait
 
 fullscreen = 0
 
