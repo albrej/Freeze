@@ -8,10 +8,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout du code
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Installer Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -25,10 +28,26 @@ jobs:
       - name: Installer buildozer
         run: pip install buildozer==1.5.0 cython==0.29.36 setuptools
 
-      - name: Build de l'APK
-        run: buildozer -v android debug
+      - name: Cache buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            .buildozer
+            ~/.buildozer
+          key: buildozer-${{ hashFiles('buildozer.spec') }}
 
-      - uses: actions/upload-artifact@v4
+      - name: Build de l'APK
+        run: |
+          for i in 1 2 3; do
+            buildozer -v android debug && exit 0
+            echo "Tentative $i échouée, nouvelle tentative dans 20 s..."
+            rm -rf .buildozer/android/platform/android-sdk .buildozer/android/platform/*.zip
+            sleep 20
+          done
+          exit 1
+
+      - name: Upload de l'APK
+        uses: actions/upload-artifact@v4
         with:
           name: freeze-screen-apk
           path: bin/*.apk
