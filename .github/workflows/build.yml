@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git zip unzip autoconf automake m4 libtool libtool-bin pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          pip install "pip==23.3.2" "setuptools==68.0.0" wheel
+          pip install --upgrade pip setuptools wheel
           pip install "cython<3.1" buildozer "https://github.com/kivy/python-for-android/archive/refs/heads/master.zip"
 
       - name: Cache Buildozer
@@ -36,7 +36,7 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: buildozer-py311-${{ hashFiles('buildozer.spec') }}-v2
+          key: buildozer-py311-${{ hashFiles('buildozer.spec') }}-v3
 
       - name: Build de l'APK
         run: buildozer -v android debug
