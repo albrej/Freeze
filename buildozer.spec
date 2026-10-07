@@ -4,6 +4,7 @@ package.name = freezesscreen
 package.domain = org.albrej
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf
+android.modules_blacklist = grp
 
 version = 1.0
 
