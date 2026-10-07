@@ -15,19 +15,32 @@ class LockScreenApp(App):
     def build(self):
         layout = FloatLayout()
         
-        # Bouton recouvrant tout l'écran faisant office de bouclier anti-clic
-        self.lock_btn = Button(
-            text="🔒 Écran Gelé\nCliquez ici pour déverrouiller",
-            font_size='22sp',
-            halign='center',
-            background_color=(0, 0, 0, 0.6),  # Fond sombre transparent
-            color=(1, 1, 1, 1),
-            size_hint=(1, 1),
-            pos_hint={'x': 0, 'y': 0}
+        # États pour suivre si chaque bouton est pressé
+        self.top_left_pressed = False
+        self.bottom_right_pressed = False
+
+        # Bouton 1 : Haut à gauche (totalement invisible/incolore)
+        self.btn_top_left = Button(
+            text="",
+            background_color=(0, 0, 0, 0),  # Fond totalement transparent
+            size_hint=(None, None),
+            size=(150, 150),
+            pos_hint={'x': 0, 'top': 1}
         )
+        self.btn_top_left.bind(on_press=self.on_top_left_press)
+
+        # Bouton 2 : Bas à droite (totalement invisible/incolore)
+        self.btn_bottom_right = Button(
+            text="",
+            background_color=(0, 0, 0, 0),  # Fond totalement transparent
+            size_hint=(None, None),
+            size=(150, 150),
+            pos_hint={'right': 1, 'y': 0}
+        )
+        self.btn_bottom_right.bind(on_press=self.on_bottom_right_press)
         
-        self.lock_btn.bind(on_press=self.unlock_screen)
-        layout.add_widget(self.lock_btn)
+        layout.add_widget(self.btn_top_left)
+        layout.add_widget(self.btn_bottom_right)
         return layout
 
     def on_start(self):
@@ -42,7 +55,20 @@ class LockScreenApp(App):
         else:
             print("[Windows/PC] Simulation : Mode épinglage ignoré sur ordinateur")
 
-    def unlock_screen(self, instance):
+    def on_top_left_press(self, instance):
+        self.top_left_pressed = True
+        self.check_unlock()
+
+    def on_bottom_right_press(self, instance):
+        self.bottom_right_pressed = True
+        self.check_unlock()
+
+    def check_unlock(self):
+        # Vérifie si les deux boutons ont été activés
+        if self.top_left_pressed and self.bottom_right_pressed:
+            self.unlock_screen()
+
+    def unlock_screen(self):
         # Quitte le mode d'épinglage uniquement sur Android et ferme l'application
         if platform == 'android' and PythonActivity:
             try:
