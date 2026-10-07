@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y git zip unzip autoconf automake m4 libtool libtool-bin pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-          pip install --upgrade pip setuptools wheel
+          pip install --upgrade pip setuptools wheel virtualenv
           pip install "cython<3.1" buildozer "https://github.com/kivy/python-for-android/archive/refs/heads/master.zip"
 
       - name: Cache Buildozer
@@ -36,7 +36,12 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
-          key: buildozer-py311-${{ hashFiles('buildozer.spec') }}-v3
+          key: buildozer-py311-${{ hashFiles('buildozer.spec') }}-v4
+
+      - name: Purge des venv en cache (fix pip spinner)
+        run: |
+          rm -rf ~/.buildozer/.buildozer_venv || true
+          find .buildozer -type d -name "venv" -exec rm -rf {} + 2>/dev/null || true
 
       - name: Build de l'APK
         run: buildozer -v android debug
