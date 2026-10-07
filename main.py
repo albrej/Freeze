@@ -1,11 +1,20 @@
 import os
-os.environ["KIVY_GL_BACKEND"] = "gles2"
-os.environ["KIVY_METRICS_DENSITY"] = "2"
+import sys
+
+# --- Contournement du crash hwuiTask/mutex sur Android 14/15 ---
+# Doit être exécuté AVANT tout import Kivy.
+# sys.getandroidapiversion() n'existe que dans le Python embarqué par p4a.
+IS_ANDROID = hasattr(sys, "getandroidapiversion") or sys.platform == "android"
+
+if IS_ANDROID:
+    os.environ["KIVY_GL_BACKEND"] = "gles2"
+    os.environ["KIVY_METRICS_DENSITY"] = "2"
 
 from kivy.config import Config
-Config.set("graphics", "multisamples", "0")
+if IS_ANDROID:
+    Config.set("graphics", "multisamples", "0")
 
-
+# --- Imports Kivy ---
 import kivy
 from kivy.app import App
 from kivy.uix.label import Label
@@ -110,7 +119,7 @@ class OverlayManager:
 
     def _make_lp(self, w, h, gravity):
         lp = WindowManagerLP(w, h, self.overlay_type, self.flags,
-                            PixelFormat.TRANSLUCENT)
+                             PixelFormat.TRANSLUCENT)
         lp.gravity = gravity
         return lp
 
