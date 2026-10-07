@@ -4,7 +4,6 @@ package.name = freezesscreen
 package.domain = org.albrej
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf
-android.modules_blacklist = grp
 
 version = 1.0
 
@@ -14,8 +13,6 @@ orientation = all
 
 fullscreen = 0
 
-
-# Permissions : aucune permission Android spécifique nécessaire pour l'épinglage
 android.permissions =
 
 android.api = 34
@@ -23,7 +20,6 @@ android.minapi = 24
 android.ndk = 25b
 android.ndk_api = 24
 android.archs = arm64-v8a,armeabi-v7a
-
 
 [buildozer]
 log_level = 2
