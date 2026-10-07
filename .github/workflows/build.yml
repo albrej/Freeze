@@ -8,14 +8,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ghcr.io/kivy/buildozer:latest
+    container:
+      image: ghcr.io/kivy/buildozer:latest
+      options: --user root
     steps:
       - name: Checkout du code
         uses: actions/checkout@v4
 
       - name: Build de l'APK
         run: |
-          yes | cp -n /home/user/.buildozer/android/platform/android-sdk 2>/dev/null || true
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           buildozer -v android debug
 
       - name: Upload de l'APK
