@@ -8,7 +8,7 @@ android.modules_blacklist = grp
 
 version = 1.0
 
-requirements = python3==3.12.10,kivy==2.3.0,hostpython3==3.12.10
+requirements = python3==3.11.8,hostpython3==3.11.8,kivy==2.3.1
 
 orientation = portrait
 
@@ -20,8 +20,11 @@ android.archs = arm64-v8a,armeabi-v7a
 android.permissions =
 
 android.api = 34
-android.minapi = 21
-android.accept_sdk_license = True
+android.minapi = 24
+android.ndk = 25b
+android.ndk_api = 24
+android.archs = arm64-v8a
+
 
 [buildozer]
 log_level = 2
