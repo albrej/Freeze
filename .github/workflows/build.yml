@@ -17,6 +17,12 @@ jobs:
           pip install buildozer cython
           libtoolize --install --force --quiet 2>/dev/null || true
 
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
