@@ -149,6 +149,7 @@ class OverlayManager:
 
     # ---------- DEGEL ----------
     def unfreeze(self):
+        print("[Freeze] unfreeze() appelé, frozen =", self.frozen)
         if not self.frozen:
             return
         self.frozen = False
@@ -166,7 +167,6 @@ class OverlayManager:
             # 1. Couche invisible plein écran qui avale les touchers
             if self.blocker is None:
                 self.blocker = View(self.ctx)
-                self.blocker.setOnTouchListener(SwallowListener())
             lp = self._make_lp(MATCH_PARENT, MATCH_PARENT, Gravity.TOP)
             self.wm.addView(self.blocker, lp)
 
@@ -175,7 +175,11 @@ class OverlayManager:
                 self.corner_tl = AButton(self.ctx)
                 self.corner_tl.setBackground(
                     ColorDrawable(argb(0x59505050)))  # gris, alpha 0x59
-                self.corner_tl.setOnTouchListener(CornerListener(self._on_tl))
+                # IMPORTANT : garder une référence Python vers l'écouteur,
+                # sinon il est supprimé par le ramasse-miettes et le
+                # prochain toucher fait planter l'appli (crash natif).
+                self._ls_tl = CornerListener(self._on_tl)
+                self.corner_tl.setOnTouchListener(self._ls_tl)
             lp = self._make_lp(CORNER_SIZE, CORNER_SIZE,
                                Gravity.TOP | Gravity.LEFT)
             self.wm.addView(self.corner_tl, lp)
@@ -184,7 +188,8 @@ class OverlayManager:
             if self.corner_br is None:
                 self.corner_br = AButton(self.ctx)
                 self.corner_br.setBackground(ColorDrawable(argb(0x59505050)))
-                self.corner_br.setOnTouchListener(CornerListener(self._on_br))
+                self._ls_br = CornerListener(self._on_br)
+                self.corner_br.setOnTouchListener(self._ls_br)
             lp = self._make_lp(CORNER_SIZE, CORNER_SIZE,
                                Gravity.BOTTOM | Gravity.RIGHT)
             self.wm.addView(self.corner_br, lp)
@@ -219,8 +224,8 @@ class OverlayManager:
                 self.btn_relock.setText(
                     cast('java.lang.CharSequence', JString("GELER")))
                 self.btn_relock.setBackground(ColorDrawable(argb(0xAA505050)))
-                self.btn_relock.setOnTouchListener(
-                    FreezeListener(self._on_relock))
+                self._ls_relock = FreezeListener(self._on_relock)
+                self.btn_relock.setOnTouchListener(self._ls_relock)
             lp = self._make_lp(280, 130, Gravity.BOTTOM | Gravity.CENTER)
             self.wm.addView(self.btn_relock, lp)
         except Exception as e:
@@ -238,11 +243,13 @@ class OverlayManager:
     def _on_tl(self):
         from time import time
         self.last_tl = time()
+        print("[Freeze] coin haut-gauche touché")
         self._check_unlock()
 
     def _on_br(self):
         from time import time
         self.last_br = time()
+        print("[Freeze] coin bas-droit touché")
         self._check_unlock()
 
     def _check_unlock(self):
