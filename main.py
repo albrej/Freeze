@@ -132,12 +132,19 @@ class OverlayManager:
         self.frozen = False
         self.pressed_tl = False
         self.pressed_br = False
+        self.relock_shown = False
 
     def _make_lp(self, w, h, gravity):
         lp = WindowManagerLP(w, h, self.overlay_type, self.flags,
                              PixelFormat.TRANSLUCENT)
         lp.gravity = gravity
         return lp
+
+    # ---------- ARMEMENT (bouton GELER seul, écran non gelé) ----------
+    def arm(self):
+        if self.frozen:
+            return
+        self._show_relock_button()
 
     # ---------- GEL ----------
     def freeze(self):
@@ -225,6 +232,8 @@ class OverlayManager:
     @run_on_ui_thread
     def _show_relock_button(self):
         try:
+            if self.relock_shown:
+                return
             if self.btn_relock is None:
                 self.btn_relock = AButton(self.ctx)
                 self.btn_relock.setText(
@@ -234,14 +243,16 @@ class OverlayManager:
                 self.btn_relock.setOnTouchListener(self._ls_relock)
             lp = self._make_lp(280, 130, Gravity.BOTTOM | Gravity.CENTER)
             self.wm.addView(self.btn_relock, lp)
+            self.relock_shown = True
         except Exception as e:
             print(f"[Freeze] Erreur bouton regeler : {e}")
 
     @run_on_ui_thread
     def _hide_relock_button(self):
         try:
-            if self.btn_relock is not None:
+            if self.btn_relock is not None and self.relock_shown:
                 self.wm.removeView(self.btn_relock)
+                self.relock_shown = False
         except Exception:
             pass
 
@@ -294,7 +305,7 @@ class FreezeApp(App):
         layout.add_widget(self.btn_perm)
 
         self.btn_freeze = Button(
-            text="2. GELER l'écran et revenir à l'app précédente",
+            text="2. Afficher le bouton GELER et revenir à l'app précédente",
             background_normal='', background_down='',
             background_color=(0.1, 0.7, 0.3, 1), size_hint=(1, 0.3))
         self.btn_freeze.bind(on_press=self.on_freeze)
@@ -341,9 +352,9 @@ class FreezeApp(App):
         if not self.overlay.has_permission():
             self.refresh_status()
             return
-        self.overlay.freeze()
+        self.overlay.arm()
         # L'app passe à l'arrière-plan : l'app précédente revient au premier
-        # plan, la couche de gel reste par-dessus.
+        # plan, avec le seul bouton GELER flottant par-dessus.
         PythonActivity.mActivity.moveTaskToBack(True)
 
 
