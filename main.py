@@ -27,7 +27,7 @@ if platform == 'android':
     from android.runnable import run_on_ui_thread
 
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
-    Settings = autoclass('android.provider.Settings$')
+    Settings = autoclass('android.provider.Settings')
     Context = autoclass('android.content.Context')
     WindowManagerLP = autoclass('android.view.WindowManager$LayoutParams')
     PixelFormat = autoclass('android.graphics.PixelFormat')
