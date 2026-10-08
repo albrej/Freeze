@@ -34,6 +34,16 @@ jobs:
         run: |
           python -m py_compile main.py
 
+      - name: Restaurer le cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
       - name: Compiler l'APK
         run: |
           set -o pipefail
