@@ -47,7 +47,6 @@ else:
     def run_on_ui_thread(func):
         return func
 
-MAX_DELAY = 2.0
 # Sécurité pendant les tests : dégel automatique après N secondes.
 # Mettre 0 pour désactiver une fois que tout fonctionne.
 AUTO_UNFREEZE_SECONDS = 30
@@ -76,7 +75,7 @@ if platform == 'android':
 
 
     class CornerListener(PythonJavaClass):
-        """Un coin de déblocage : prévient Python à l'appui."""
+        """Un coin de déblocage : prévient Python à l'appui et au relâchement."""
         __javainterfaces__ = ['android/view/View$OnTouchListener']
         __javacontext__ = 'app'
 
@@ -86,8 +85,12 @@ if platform == 'android':
 
         @java_method('(Landroid/view/View;Landroid/view/MotionEvent;)Z')
         def onTouch(self, v, event):
-            if event.getAction() == MotionEvent.ACTION_DOWN:
-                self.cb()
+            action = event.getActionMasked()
+            if action == MotionEvent.ACTION_DOWN:
+                self.cb(True)
+            elif action in (MotionEvent.ACTION_UP,
+                            MotionEvent.ACTION_CANCEL):
+                self.cb(False)
             return True
 
 
@@ -119,15 +122,16 @@ class OverlayManager:
         self.overlay_type = (WindowManagerLP.TYPE_APPLICATION_OVERLAY
                               if SDK_INT >= 26 else WindowManagerLP.TYPE_PHONE)
         self.flags = (WindowManagerLP.FLAG_NOT_FOCUSABLE
-                      | WindowManagerLP.FLAG_LAYOUT_NO_LIMITS)
+                      | WindowManagerLP.FLAG_LAYOUT_NO_LIMITS
+                      | WindowManagerLP.FLAG_SPLIT_TOUCH)
 
         self.blocker = None      # couche qui gèle tout
         self.corner_tl = None    # coin haut-gauche
         self.corner_br = None    # coin bas-droit
         self.btn_relock = None   # petit bouton pour regeler
         self.frozen = False
-        self.last_tl = 0
-        self.last_br = 0
+        self.pressed_tl = False
+        self.pressed_br = False
 
     def _make_lp(self, w, h, gravity):
         lp = WindowManagerLP(w, h, self.overlay_type, self.flags,
@@ -140,6 +144,8 @@ class OverlayManager:
         if self.frozen:
             return
         self.frozen = True
+        self.pressed_tl = False
+        self.pressed_br = False
         self._add_overlay_views()
         if AUTO_UNFREEZE_SECONDS:
             import threading
@@ -240,28 +246,22 @@ class OverlayManager:
             pass
 
     # ---------- Callbacks toucher ----------
-    def _on_tl(self):
-        from time import time
-        self.last_tl = time()
-        print("[Freeze] coin haut-gauche touché")
+    def _on_tl(self, pressed):
+        self.pressed_tl = pressed
+        print("[Freeze] coin haut-gauche", "appuyé" if pressed else "relâché")
         self._check_unlock()
 
-    def _on_br(self):
-        from time import time
-        self.last_br = time()
-        print("[Freeze] coin bas-droit touché")
+    def _on_br(self, pressed):
+        self.pressed_br = pressed
+        print("[Freeze] coin bas-droit", "appuyé" if pressed else "relâché")
         self._check_unlock()
 
     def _check_unlock(self):
-        if self.last_tl and self.last_br:
-            if abs(self.last_tl - self.last_br) <= MAX_DELAY:
-                self.last_tl = 0
-                self.last_br = 0
-                self.unfreeze()
-            else:
-                # trop lent : on repart de zéro
-                self.last_tl = 0
-                self.last_br = 0
+        # Dégel seulement si les DEUX coins sont maintenus en même temps
+        if self.pressed_tl and self.pressed_br:
+            self.pressed_tl = False
+            self.pressed_br = False
+            self.unfreeze()
 
     def _on_relock(self):
         self._hide_relock_button()
