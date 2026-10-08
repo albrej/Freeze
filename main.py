@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 
 # --- Contournement du crash hwuiTask/mutex sur Android 14/15 ---
 # Doit être exécuté AVANT tout import Kivy.
@@ -21,6 +22,7 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.boxlayout import BoxLayout
 from kivy.utils import platform
+from kivy.metrics import dp
 
 if platform == 'android':
     from jnius import autoclass, cast, PythonJavaClass, java_method
@@ -50,6 +52,8 @@ else:
 # Sécurité pendant les tests : dégel automatique après N secondes.
 # Mettre 0 pour désactiver une fois que tout fonctionne.
 AUTO_UNFREEZE_SECONDS = 0
+# Durée d'appui (en secondes) sur le bouton GELER pour déclencher le gel.
+LONG_PRESS_SECONDS = 0.8
 MATCH_PARENT = -1
 CORNER_SIZE = 250  # px, ~1.6 cm sur le Redmi
 
@@ -95,18 +99,33 @@ if platform == 'android':
 
 
     class FreezeListener(PythonJavaClass):
-        """Bouton flottant 'regeler'."""
+        """Bouton flottant 'GELER' : se déclenche sur un appui long."""
         __javainterfaces__ = ['android/view/View$OnTouchListener']
         __javacontext__ = 'app'
 
-        def __init__(self, callback):
+        def __init__(self, callback, delay=LONG_PRESS_SECONDS):
             super().__init__()
             self.cb = callback
+            self.delay = delay
+            self._timer = None
+
+        def _cancel(self):
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
 
         @java_method('(Landroid/view/View;Landroid/view/MotionEvent;)Z')
         def onTouch(self, v, event):
-            if event.getAction() == MotionEvent.ACTION_DOWN:
-                self.cb()
+            action = event.getActionMasked()
+            if action == MotionEvent.ACTION_DOWN:
+                # Clic long : le gel ne part que si l'appui dure assez
+                self._cancel()
+                self._timer = threading.Timer(self.delay, self.cb)
+                self._timer.daemon = True
+                self._timer.start()
+            elif action in (MotionEvent.ACTION_UP,
+                            MotionEvent.ACTION_CANCEL):
+                self._cancel()
             return True
 
 
@@ -298,13 +317,14 @@ class FreezeApp(App):
         layout.add_widget(self.status)
 
         self.btn_perm = Button(
-            text="1. Accorder la permission\nà l'appli ''Freeze Screen''",
+            text="1. Accorder la permission\nà l'appli \"Freeze Screen\"",
+            halign='center', valign='middle',
             background_normal='', background_down='',
-            background_color=(0.2, 0.6, 1.0, 1),
-            size_hint=(1, 0.3),
-            halign='center',
-            valign='middle')
-        self.btn_perm.bind(size=self._center_permission_text)
+            background_color=(0.2, 0.6, 1.0, 1), size_hint=(1, 0.3))
+        # Largeur de texte = largeur du bouton (moins une marge), pour que
+        # les deux lignes restent centrées et dans le bouton
+        self.btn_perm.bind(
+            size=lambda b, sz: setattr(b, 'text_size', (sz[0] - dp(20), None)))
         self.btn_perm.bind(on_press=self.on_ask_permission)
         layout.add_widget(self.btn_perm)
 
@@ -316,9 +336,6 @@ class FreezeApp(App):
         layout.add_widget(self.btn_freeze)
 
         return layout
-
-    def _center_permission_text(self, instance, size):
-        instance.text_size = size
 
     def on_start(self):
         if platform != 'android':
@@ -341,12 +358,12 @@ class FreezeApp(App):
     def refresh_status(self):
         if self.overlay.has_permission():
             self.status.text = ("Freeze Screen\n\n"
-                                "✓ Permission accordée\n"
+                                "Permission accordée\n"
                                 "Étape 2 : Geler l'écran")
             self.btn_perm.disabled = True
         else:
             self.status.text = ("Freeze Screen\n\n"
-                               "✗ Permission manquante\n"
+                               "Permission manquante\n"
                                "Étape 1 obligatoire")
             self.btn_perm.disabled = False
 
