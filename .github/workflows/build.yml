@@ -49,14 +49,10 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME"
           java -version
 
-      - name: Purger le venv p4a en cache (fix pip spinner)
-        run: |
-          rm -rf .buildozer/android/platform/build-*/build/venv 2>/dev/null || true
-          find ~/.buildozer .buildozer -type d -name "venv" -exec rm -rf {} + 2>/dev/null || true
-
-      - name: Pre-creer le venv p4a avec un pip recent
+      - name: Venv p4a propre avec pip recent
         run: |
           VENV=.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/build/venv
+          rm -rf "$VENV"
           mkdir -p "$(dirname "$VENV")"
           python -m venv "$VENV"
           "$VENV/bin/pip" install --upgrade pip setuptools wheel
