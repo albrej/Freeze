@@ -1,76 +1,50 @@
-name: Build APK
+name: Build APK Android
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
     steps:
-      - name: Checkout du code
+      - name: Récupérer le code du dépôt
         uses: actions/checkout@v4
 
-      - name: Installer Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Installer Python 3.11
+      - name: Installer Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Dépendances système
+      - name: Installer les dépendances système
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git zip unzip autoconf libtool \
-            pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
-            cmake libffi-dev libssl-dev
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+            zlib1g-dev libncurses-dev libncursesw5-dev cmake libffi-dev \
+            libssl-dev automake build-essential
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> "$GITHUB_ENV"
 
-      - name: Installer buildozer
+      - name: Préparer l'environnement Python et installer Buildozer
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install buildozer==1.5.0 cython==0.29.36 virtualenv
+          python -m pip install --upgrade "pip<24.1" setuptools wheel
+          pip install "Cython<3.0" virtualenv buildozer
 
-      - name: Cache buildozer
-        uses: actions/cache@v4
-        with:
-          path: |
-            .buildozer
-            ~/.buildozer
-          key: buildozer-${{ hashFiles('buildozer.spec') }}
-
-      - name: Vérifier Java
+      - name: Vérifier la syntaxe Python
         run: |
-          echo "JAVA_HOME=$JAVA_HOME"
-          java -version
+          python -m py_compile main.py
 
-      - name: Venv p4a propre avec pip recent
+      - name: Compiler l'APK
+        run: yes | buildozer -v android debug
+
+      - name: Vérifier manifest APK
         run: |
-          VENV=.buildozer/android/platform/build-arm64-v8a_armeabi-v7a/build/venv
-          rm -rf "$VENV"
-          mkdir -p "$(dirname "$VENV")"
-          python -m venv "$VENV"
-          "$VENV/bin/pip" install --upgrade pip setuptools wheel
-          "$VENV/bin/pip" --version
+          unzip -o bin/*.apk AndroidManifest.xml -d /tmp/apk_check
+          strings /tmp/apk_check/AndroidManifest.xml | grep -i foregroundServiceType \
+            || echo "ATTENTION: foregroundServiceType ABSENT du manifest !"
 
-      - name: Build de l'APK
-        run: |
-          set -o pipefail
-          for i in 1 2 3; do
-            buildozer -v android debug 2>&1 | tee build.log && exit 0
-            echo "=== Tentative $i échouée — fin du log ==="
-            tail -n 60 build.log
-            sleep 20
-          done
-          exit 1
-
-      - name: Upload de l'APK
+      - name: Mettre l'APK à disposition en téléchargement
         uses: actions/upload-artifact@v4
         with:
-          name: freeze-screen-apk
+          name: freezescreen-apk
           path: bin/*.apk
