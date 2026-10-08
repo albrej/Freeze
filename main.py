@@ -298,9 +298,13 @@ class FreezeApp(App):
         layout.add_widget(self.status)
 
         self.btn_perm = Button(
-            text="1. Accorder la permission\n\"à Freeze Screen\"",
+            text="1. Accorder la permission\nà l'appli ''Freeze Screen''",
             background_normal='', background_down='',
-            background_color=(0.2, 0.6, 1.0, 1), size_hint=(1, 0.3))
+            background_color=(0.2, 0.6, 1.0, 1),
+            size_hint=(1, 0.3),
+            halign='center',
+            valign='middle')
+        self.btn_perm.bind(size=self._center_permission_text)
         self.btn_perm.bind(on_press=self.on_ask_permission)
         layout.add_widget(self.btn_perm)
 
@@ -312,6 +316,9 @@ class FreezeApp(App):
         layout.add_widget(self.btn_freeze)
 
         return layout
+
+    def _center_permission_text(self, instance, size):
+        instance.text_size = size
 
     def on_start(self):
         if platform != 'android':
