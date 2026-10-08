@@ -51,6 +51,11 @@ MATCH_PARENT = -1
 CORNER_SIZE = 250  # px, ~1.6 cm sur le Redmi
 
 
+def argb(value):
+    """Convertit une couleur 0xAARRGGBB en entier signé 32 bits (int Java)."""
+    return value - 0x100000000 if value > 0x7FFFFFFF else value
+
+
 if platform == 'android':
 
     class SwallowListener(PythonJavaClass):
@@ -103,7 +108,10 @@ class OverlayManager:
 
     def __init__(self):
         self.activity = PythonActivity.mActivity
-        self.wm = self.activity.getSystemService(Context.WINDOW_SERVICE)
+        # Contexte de l'application : vit aussi longtemps que le processus,
+        # contrairement à l'activité qui peut être détruite en arrière-plan.
+        self.ctx = self.activity.getApplicationContext()
+        self.wm = self.ctx.getSystemService(Context.WINDOW_SERVICE)
         self.overlay_type = (WindowManagerLP.TYPE_APPLICATION_OVERLAY
                               if SDK_INT >= 26 else WindowManagerLP.TYPE_PHONE)
         self.flags = (WindowManagerLP.FLAG_NOT_FOCUSABLE
@@ -144,17 +152,17 @@ class OverlayManager:
         try:
             # 1. Couche invisible plein écran qui avale les touchers
             if self.blocker is None:
-                self.blocker = View(self.activity)
+                self.blocker = View(self.ctx)
                 self.blocker.setOnTouchListener(SwallowListener())
             lp = self._make_lp(MATCH_PARENT, MATCH_PARENT, Gravity.TOP)
             self.wm.addView(self.blocker, lp)
 
             # 2. Coin haut-gauche (visible, gris translucide)
             if self.corner_tl is None:
-                self.corner_tl = AButton(self.activity)
+                self.corner_tl = AButton(self.ctx)
                 self.corner_tl.setText("")
                 self.corner_tl.setBackground(
-                    ColorDrawable(0x59505050))  # gris, alpha 0x59
+                    ColorDrawable(argb(0x59505050)))  # gris, alpha 0x59
                 self.corner_tl.setOnTouchListener(CornerListener(self._on_tl))
             lp = self._make_lp(CORNER_SIZE, CORNER_SIZE,
                                Gravity.TOP | Gravity.LEFT)
@@ -162,9 +170,9 @@ class OverlayManager:
 
             # 3. Coin bas-droit
             if self.corner_br is None:
-                self.corner_br = AButton(self.activity)
+                self.corner_br = AButton(self.ctx)
                 self.corner_br.setText("")
-                self.corner_br.setBackground(ColorDrawable(0x59505050))
+                self.corner_br.setBackground(ColorDrawable(argb(0x59505050)))
                 self.corner_br.setOnTouchListener(CornerListener(self._on_br))
             lp = self._make_lp(CORNER_SIZE, CORNER_SIZE,
                                Gravity.BOTTOM | Gravity.RIGHT)
@@ -188,9 +196,9 @@ class OverlayManager:
     def _show_relock_button(self):
         try:
             if self.btn_relock is None:
-                self.btn_relock = AButton(self.activity)
+                self.btn_relock = AButton(self.ctx)
                 self.btn_relock.setText("GELER")
-                self.btn_relock.setBackground(ColorDrawable(0xAA505050))
+                self.btn_relock.setBackground(ColorDrawable(argb(0xAA505050)))
                 self.btn_relock.setOnTouchListener(
                     FreezeListener(self._on_relock))
             lp = self._make_lp(280, 130, Gravity.BOTTOM | Gravity.CENTER)
@@ -259,7 +267,7 @@ class FreezeApp(App):
         layout.add_widget(self.btn_perm)
 
         self.btn_freeze = Button(
-            text="2. GELER l'écran et revenir à Maps",
+            text="2. GELER l'écran et revenir à l'app précédente",
             background_normal='', background_down='',
             background_color=(0.1, 0.7, 0.3, 1), size_hint=(1, 0.3))
         self.btn_freeze.bind(on_press=self.on_freeze)
@@ -274,6 +282,11 @@ class FreezeApp(App):
             return
         self.overlay = OverlayManager()
         self.refresh_status()
+
+    def on_pause(self):
+        # Sans ça, Kivy arrête l'appli dès qu'elle passe en arrière-plan
+        # et les couches de gel disparaissent avec elle.
+        return True
 
     def on_resume(self):
         # appelé aussi au retour depuis les paramètres Android
@@ -296,12 +309,14 @@ class FreezeApp(App):
         self.overlay.ask_permission()
 
     def on_freeze(self, *args):
+        if platform != 'android':
+            return
         if not self.overlay.has_permission():
             self.refresh_status()
             return
         self.overlay.freeze()
-        # L'app passe à l'arrière-plan : Maps revient au premier plan,
-        # la couche de gel reste par-dessus.
+        # L'app passe à l'arrière-plan : l'app précédente revient au premier
+        # plan, la couche de gel reste par-dessus.
         PythonActivity.mActivity.moveTaskToBack(True)
 
 
