@@ -49,7 +49,7 @@ else:
 
 # Sécurité pendant les tests : dégel automatique après N secondes.
 # Mettre 0 pour désactiver une fois que tout fonctionne.
-AUTO_UNFREEZE_SECONDS = 30
+AUTO_UNFREEZE_SECONDS = 0
 MATCH_PARENT = -1
 CORNER_SIZE = 250  # px, ~1.6 cm sur le Redmi
 
@@ -298,14 +298,14 @@ class FreezeApp(App):
         layout.add_widget(self.status)
 
         self.btn_perm = Button(
-            text="1. Accorder la permission\n\"Afficher par-dessus les autres apps\"",
+            text="1. Accorder la permission\n\"à Freeze Screen\"",
             background_normal='', background_down='',
             background_color=(0.2, 0.6, 1.0, 1), size_hint=(1, 0.3))
         self.btn_perm.bind(on_press=self.on_ask_permission)
         layout.add_widget(self.btn_perm)
 
         self.btn_freeze = Button(
-            text="2. Afficher le bouton GELER et revenir à l'app précédente",
+            text="2. Afficher le bouton GELER",
             background_normal='', background_down='',
             background_color=(0.1, 0.7, 0.3, 1), size_hint=(1, 0.3))
         self.btn_freeze.bind(on_press=self.on_freeze)
