@@ -37,7 +37,7 @@ jobs:
       - name: Compiler l'APK
         run: |
           set -o pipefail
-          yes | buildozer -v android debug 2>&1 | tee build.log
+          buildozer -v android debug 2>&1 | tee build.log
 
       - name: Afficher la fin du log en cas d'échec
         if: failure()
