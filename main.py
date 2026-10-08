@@ -23,7 +23,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.utils import platform
 
 if platform == 'android':
-    from jnius import autoclass, PythonJavaClass, java_method
+    from jnius import autoclass, cast, PythonJavaClass, java_method
     from android.runnable import run_on_ui_thread
 
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -39,6 +39,7 @@ if platform == 'android':
     Uri = autoclass('android.net.Uri')
     Intent = autoclass('android.content.Intent')
     SDK_INT = autoclass('android.os.Build$VERSION').SDK_INT
+    JString = autoclass('java.lang.String')
 else:
     PythonActivity = None
 
@@ -47,6 +48,9 @@ else:
         return func
 
 MAX_DELAY = 2.0
+# Sécurité pendant les tests : dégel automatique après N secondes.
+# Mettre 0 pour désactiver une fois que tout fonctionne.
+AUTO_UNFREEZE_SECONDS = 30
 MATCH_PARENT = -1
 CORNER_SIZE = 250  # px, ~1.6 cm sur le Redmi
 
@@ -137,12 +141,21 @@ class OverlayManager:
             return
         self.frozen = True
         self._add_overlay_views()
+        if AUTO_UNFREEZE_SECONDS:
+            import threading
+            self._timer = threading.Timer(AUTO_UNFREEZE_SECONDS, self.unfreeze)
+            self._timer.daemon = True
+            self._timer.start()
 
     # ---------- DEGEL ----------
     def unfreeze(self):
         if not self.frozen:
             return
         self.frozen = False
+        t = getattr(self, '_timer', None)
+        if t is not None:
+            t.cancel()
+            self._timer = None
         self._remove_overlay_views()
         self._show_relock_button()
 
@@ -160,7 +173,6 @@ class OverlayManager:
             # 2. Coin haut-gauche (visible, gris translucide)
             if self.corner_tl is None:
                 self.corner_tl = AButton(self.ctx)
-                self.corner_tl.setText("")
                 self.corner_tl.setBackground(
                     ColorDrawable(argb(0x59505050)))  # gris, alpha 0x59
                 self.corner_tl.setOnTouchListener(CornerListener(self._on_tl))
@@ -171,7 +183,6 @@ class OverlayManager:
             # 3. Coin bas-droit
             if self.corner_br is None:
                 self.corner_br = AButton(self.ctx)
-                self.corner_br.setText("")
                 self.corner_br.setBackground(ColorDrawable(argb(0x59505050)))
                 self.corner_br.setOnTouchListener(CornerListener(self._on_br))
             lp = self._make_lp(CORNER_SIZE, CORNER_SIZE,
@@ -181,23 +192,32 @@ class OverlayManager:
             print("[Freeze] Gel actif")
         except Exception as e:
             print(f"[Freeze] Erreur gel : {e}")
+            # Ne jamais laisser l'écran bloqué sans coins de déblocage
+            for v in (self.blocker, self.corner_tl, self.corner_br):
+                try:
+                    if v is not None:
+                        self.wm.removeView(v)
+                except Exception:
+                    pass
+            self.frozen = False
 
     @run_on_ui_thread
     def _remove_overlay_views(self):
-        try:
-            for v in (self.blocker, self.corner_tl, self.corner_br):
+        for v in (self.blocker, self.corner_tl, self.corner_br):
+            try:
                 if v is not None:
                     self.wm.removeView(v)
-            print("[Freeze] Dégel effectué")
-        except Exception as e:
-            print(f"[Freeze] Erreur dégel : {e}")
+            except Exception as e:
+                print(f"[Freeze] Erreur retrait vue : {e}")
+        print("[Freeze] Dégel effectué")
 
     @run_on_ui_thread
     def _show_relock_button(self):
         try:
             if self.btn_relock is None:
                 self.btn_relock = AButton(self.ctx)
-                self.btn_relock.setText("GELER")
+                self.btn_relock.setText(
+                    cast('java.lang.CharSequence', JString("GELER")))
                 self.btn_relock.setBackground(ColorDrawable(argb(0xAA505050)))
                 self.btn_relock.setOnTouchListener(
                     FreezeListener(self._on_relock))
