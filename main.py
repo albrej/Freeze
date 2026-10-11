@@ -39,10 +39,9 @@ else:
 # La classe Java générée s'appelle <package>.Service<Nom avec majuscule>.
 SERVICE_NAME = 'Freeze'
 
-# True : la fenêtre disparaît aussi de la liste des applis récentes.
-# Si HyperOS arrête tout Freeze Screen dès qu'on ouvre une autre appli,
-# essayer False (la fenêtre reste alors dans les récentes, comme une
-# appli normale, ce qui peut empêcher le système de la tuer).
+# True : la fenêtre disparaît aussi de la liste des applis récentes (Android
+# la ferme alors en arrière-plan ; le service, lui, continue grâce à
+# « sticky » dans buildozer.spec). False : la fenêtre reste dans les récentes.
 HIDE_FROM_RECENTS = True
 
 

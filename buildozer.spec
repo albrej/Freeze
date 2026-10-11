@@ -16,7 +16,9 @@ android.permissions = SYSTEM_ALERT_WINDOW,FOREGROUND_SERVICE,FOREGROUND_SERVICE_
 # Service qui porte le bouton GELER, le gel et les coins de déblocage.
 # Nom "freeze" -> classe Java org.perso.freezescreen.ServiceFreeze
 # (doit correspondre à SERVICE_NAME dans main.py)
-services = freeze:service.py:foreground:foregroundServiceType=specialUse
+# sticky : indispensable, sinon le service s'arrête dès que la tâche de
+# l'appli est retirée des récents (python-for-android appelle stopSelf).
+services = freeze:service.py:foreground:sticky:foregroundServiceType=specialUse
 
 orientation = portrait
 fullscreen = 0
