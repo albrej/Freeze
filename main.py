@@ -39,6 +39,12 @@ else:
 # La classe Java générée s'appelle <package>.Service<Nom avec majuscule>.
 SERVICE_NAME = 'Freeze'
 
+# True : la fenêtre disparaît aussi de la liste des applis récentes.
+# Si HyperOS arrête tout Freeze Screen dès qu'on ouvre une autre appli,
+# essayer False (la fenêtre reste alors dans les récentes, comme une
+# appli normale, ce qui peut empêcher le système de la tuer).
+HIDE_FROM_RECENTS = True
+
 
 class ServiceController:
     """Pilote le service Android (démarrage, arrêt, état) et la permission.
@@ -107,7 +113,8 @@ class ServiceController:
             print(f"[Freeze] Liste des récents inchangée : {e}")
 
     def hide_window(self):
-        self.exclude_from_recents(True)
+        if HIDE_FROM_RECENTS:
+            self.exclude_from_recents(True)
         self.activity.moveTaskToBack(True)
 
 
