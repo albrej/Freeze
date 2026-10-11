@@ -186,9 +186,16 @@ class FreezeApp(App):
                                     "Le service n'a pas pu démarrer\n"
                                     "(voir adb logcat -s python)")
                 return
-        # La fenêtre disparaît ; le service continue (icône dans la barre
-        # d'état + bouton GELER flottant). Pour l'arrêter : bouton 3.
-        PythonActivity.mActivity.moveTaskToBack(True)
+        # On ferme complètement la fenêtre (elle disparaît aussi de la liste
+        # des applis récentes). Le service tourne dans un processus séparé :
+        # il continue (icône dans la barre d'état + bouton GELER flottant).
+        # Pour revenir ici et l'arrêter : rouvrir l'appli, bouton 3.
+        activity = PythonActivity.mActivity
+        try:
+            activity.finishAndRemoveTask()
+        except Exception as e:
+            print(f"[Freeze] finishAndRemoveTask impossible : {e}")
+            activity.moveTaskToBack(True)
 
     def on_stop_service(self, *args):
         if self.ctrl is None:
