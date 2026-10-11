@@ -94,6 +94,22 @@ class ServiceController:
         except Exception as e:
             print(f"[Freeze] Arrêt du service impossible : {e}")
 
+    # ---------- Fenêtre ----------
+    def exclude_from_recents(self, excluded):
+        """Cache (ou remet) la fenêtre de l'appli dans la liste des applis
+        récentes, sans fermer l'activité."""
+        try:
+            am = self.activity.getSystemService(Context.ACTIVITY_SERVICE)
+            tasks = am.getAppTasks()
+            for i in range(tasks.size()):
+                tasks.get(i).setExcludeFromRecents(excluded)
+        except Exception as e:
+            print(f"[Freeze] Liste des récents inchangée : {e}")
+
+    def hide_window(self):
+        self.exclude_from_recents(True)
+        self.activity.moveTaskToBack(True)
+
 
 class FreezeApp(App):
     def build(self):
@@ -151,6 +167,8 @@ class FreezeApp(App):
     def on_resume(self):
         # appelé aussi au retour depuis les paramètres Android
         if self.ctrl is not None:
+            # la fenêtre redevient visible : on la remet dans les récents
+            self.ctrl.exclude_from_recents(False)
             self.refresh_status()
 
     def refresh_status(self, *args):
@@ -186,16 +204,11 @@ class FreezeApp(App):
                                     "Le service n'a pas pu démarrer\n"
                                     "(voir adb logcat -s python)")
                 return
-        # On ferme complètement la fenêtre (elle disparaît aussi de la liste
-        # des applis récentes). Le service tourne dans un processus séparé :
-        # il continue (icône dans la barre d'état + bouton GELER flottant).
-        # Pour revenir ici et l'arrêter : rouvrir l'appli, bouton 3.
-        activity = PythonActivity.mActivity
-        try:
-            activity.finishAndRemoveTask()
-        except Exception as e:
-            print(f"[Freeze] finishAndRemoveTask impossible : {e}")
-            activity.moveTaskToBack(True)
+        # La fenêtre disparaît (et n'apparaît plus dans les applis récentes) ;
+        # le service continue (icône dans la barre d'état + bouton GELER).
+        # Pour revenir ici et l'arrêter : toucher la notification (ou
+        # rouvrir l'appli), puis bouton 3.
+        self.ctrl.hide_window()
 
     def on_stop_service(self, *args):
         if self.ctrl is None:
