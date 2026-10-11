@@ -32,7 +32,7 @@ jobs:
 
       - name: Vérifier la syntaxe Python
         run: |
-          python -m py_compile main.py
+          python -m py_compile main.py service.py
 
       - name: Restaurer le cache Buildozer
         uses: actions/cache@v4
@@ -48,6 +48,18 @@ jobs:
         run: |
           set -o pipefail
           buildozer -v android debug 2>&1 | tee build.log
+
+      - name: Vérifier le service dans le manifest de l'APK
+        run: |
+          mkdir -p /tmp/apk_check
+          unzip -o bin/*.apk AndroidManifest.xml -d /tmp/apk_check
+          # le manifest est en XML binaire : on cherche aussi en UTF-16
+          { strings -a /tmp/apk_check/AndroidManifest.xml; \
+            strings -a -e l /tmp/apk_check/AndroidManifest.xml; } > /tmp/apk_check/manifest.txt
+          grep -i "ServiceFreeze" /tmp/apk_check/manifest.txt \
+            || echo "ATTENTION: ServiceFreeze ABSENT du manifest !"
+          grep -i "foregroundServiceType" /tmp/apk_check/manifest.txt \
+            || echo "ATTENTION: foregroundServiceType ABSENT du manifest !"
 
       - name: Afficher la fin du log en cas d'échec
         if: failure()
