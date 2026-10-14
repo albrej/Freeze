@@ -1,8 +1,13 @@
 """Service Freeze Screen (service Android de premier plan).
 
-Ce script tourne dans un processus séparé, sans fenêtre : il porte le bouton
-flottant « GELER », les couches de gel et les deux coins de déblocage. Il
-continue donc de fonctionner même quand l'application (main.py) est fermée.
+Ce script tourne dans un processus séparé, sans fenêtre : il porte les couches
+de gel et les deux coins de déblocage. Il continue donc de fonctionner même
+quand l'application (main.py) est fermée.
+
+Tout se commande depuis la notification (icône dans la barre d'état) :
+  - bouton « Geler »   : gèle l'écran ;
+  - bouton « Quitter » : arrête Freeze Screen.
+Le dégel se fait uniquement en maintenant en même temps les deux coins gris.
 """
 import threading
 import time
@@ -24,13 +29,31 @@ Handler = autoclass('android.os.Handler')
 Looper = autoclass('android.os.Looper')
 SDK_INT = autoclass('android.os.Build$VERSION').SDK_INT
 JString = autoclass('java.lang.String')
+Intent = autoclass('android.content.Intent')
+IntentFilter = autoclass('android.content.IntentFilter')
+PendingIntent = autoclass('android.app.PendingIntent')
+NotificationBuilder = autoclass('android.app.Notification$Builder')
+NotificationChannel = autoclass('android.app.NotificationChannel')
+RDrawable = autoclass('android.R$drawable')
+GenericBroadcastReceiver = autoclass('org.kivy.android.GenericBroadcastReceiver')
 
 MATCH_PARENT = -1
 CORNER_SIZE = 250  # px, ~1.6 cm sur le Redmi
 # Dégel automatique de sécurité après N secondes (0 = désactivé).
 AUTO_UNFREEZE_SECONDS = 0
-# Durée d'appui (en secondes) sur le bouton GELER pour déclencher le gel.
-LONG_PRESS_SECONDS = 0.8
+
+# Notification du service : même identifiant que celle de python-for-android
+# (« Id:1 » dans le log), donc la nôtre la remplace au lieu de s'ajouter.
+NOTIF_ID = 1
+NOTIF_CHANNEL = 'freeze_screen'
+FLAG_IMMUTABLE = 0x04000000
+RECEIVER_NOT_EXPORTED = 4
+IMPORTANCE_LOW = 2
+
+
+def cs(text):
+    """Chaîne Python -> java.lang.CharSequence (pyjnius ne le fait pas seul)."""
+    return cast('java.lang.CharSequence', JString(text))
 
 
 def argb(value):
@@ -81,7 +104,7 @@ def ui_thread(f):
 
 
 # ---------------------------------------------------------------------------
-# Écouteurs de toucher (à garder référencés côté Python !)
+# Écouteur de toucher (à garder référencé côté Python !)
 # ---------------------------------------------------------------------------
 class CornerListener(PythonJavaClass):
     """Un coin de déblocage : prévient Python à l'appui et au relâchement."""
@@ -102,40 +125,11 @@ class CornerListener(PythonJavaClass):
         return True
 
 
-class FreezeListener(PythonJavaClass):
-    """Bouton flottant 'GELER' : se déclenche sur un appui long."""
-    __javainterfaces__ = ['android/view/View$OnTouchListener']
-    __javacontext__ = 'app'
-
-    def __init__(self, callback, delay=LONG_PRESS_SECONDS):
-        super().__init__()
-        self.cb = callback
-        self.delay = delay
-        self._timer = None
-
-    def _cancel(self):
-        if self._timer is not None:
-            self._timer.cancel()
-            self._timer = None
-
-    @java_method('(Landroid/view/View;Landroid/view/MotionEvent;)Z')
-    def onTouch(self, v, event):
-        action = event.getActionMasked()
-        if action == MotionEvent.ACTION_DOWN:
-            self._cancel()
-            self._timer = threading.Timer(self.delay, self.cb)
-            self._timer.daemon = True
-            self._timer.start()
-        elif action in (MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL):
-            self._cancel()
-        return True
-
-
 # ---------------------------------------------------------------------------
-# Gestion des vues flottantes
+# Gestion des vues flottantes (gel + coins de déblocage)
 # ---------------------------------------------------------------------------
 class OverlayManager:
-    """Gère les vues flottantes : gel, coins, bouton GELER."""
+    """Gère les vues flottantes : couche de gel et coins de déblocage."""
 
     def __init__(self):
         self.ctx = PythonService.mService
@@ -149,11 +143,9 @@ class OverlayManager:
         self.blocker = None      # couche qui gèle tout
         self.corner_tl = None    # coin haut-gauche
         self.corner_br = None    # coin bas-droit
-        self.btn_relock = None   # bouton GELER
         self.frozen = False
         self.pressed_tl = False
         self.pressed_br = False
-        self.relock_shown = False
         self._timer = None
 
     def has_permission(self):
@@ -165,12 +157,6 @@ class OverlayManager:
         lp.gravity = gravity
         return lp
 
-    # ---------- ARMEMENT (bouton GELER seul, écran non gelé) ----------
-    def arm(self):
-        if self.frozen:
-            return
-        self._show_relock_button()
-
     # ---------- GEL ----------
     def freeze(self):
         if self.frozen:
@@ -179,12 +165,13 @@ class OverlayManager:
         self.pressed_tl = False
         self.pressed_br = False
         self._add_overlay_views()
+        _notify_state(True)
         if AUTO_UNFREEZE_SECONDS:
             self._timer = threading.Timer(AUTO_UNFREEZE_SECONDS, self.unfreeze)
             self._timer.daemon = True
             self._timer.start()
 
-    # ---------- DEGEL ----------
+    # ---------- DEGEL (uniquement par les deux coins) ----------
     def unfreeze(self):
         print("[Freeze] unfreeze() appelé, frozen =", self.frozen)
         if not self.frozen:
@@ -194,7 +181,18 @@ class OverlayManager:
             self._timer.cancel()
             self._timer = None
         self._remove_overlay_views()
-        self._show_relock_button()
+        _notify_state(False)
+
+    # ---------- Arrêt complet (bouton « Quitter » de la notification) ----------
+    def shutdown(self):
+        print("[Freeze] Arrêt demandé depuis la notification")
+        self.frozen = False
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        self._remove_overlay_views()
+        # exécuté après le retrait ci-dessus (même file d'attente)
+        on_ui(lambda: PythonService.mService.stopSelf())
 
     # ---------- Vues (thread principal Android) ----------
     @ui_thread
@@ -238,6 +236,7 @@ class OverlayManager:
                 except Exception:
                     pass
             self.frozen = False
+            _notify_state(False)
 
     @ui_thread
     def _remove_overlay_views(self):
@@ -248,33 +247,6 @@ class OverlayManager:
             except Exception as e:
                 print(f"[Freeze] Erreur retrait vue : {e}")
         print("[Freeze] Dégel effectué")
-
-    @ui_thread
-    def _show_relock_button(self):
-        try:
-            if self.relock_shown:
-                return
-            if self.btn_relock is None:
-                self.btn_relock = AButton(self.ctx)
-                self.btn_relock.setText(
-                    cast('java.lang.CharSequence', JString("GELER")))
-                self.btn_relock.setBackground(ColorDrawable(argb(0xAA505050)))
-                self._ls_relock = FreezeListener(self._on_relock)
-                self.btn_relock.setOnTouchListener(self._ls_relock)
-            lp = self._make_lp(280, 130, Gravity.BOTTOM | Gravity.CENTER)
-            self.wm.addView(self.btn_relock, lp)
-            self.relock_shown = True
-        except Exception as e:
-            print(f"[Freeze] Erreur bouton GELER : {e}")
-
-    @ui_thread
-    def _hide_relock_button(self):
-        try:
-            if self.btn_relock is not None and self.relock_shown:
-                self.wm.removeView(self.btn_relock)
-                self.relock_shown = False
-        except Exception:
-            pass
 
     # ---------- Callbacks toucher ----------
     def _on_tl(self, pressed):
@@ -294,21 +266,125 @@ class OverlayManager:
             self.pressed_br = False
             self.unfreeze()
 
-    def _on_relock(self):
-        self._hide_relock_button()
-        self.freeze()
+
+# ---------------------------------------------------------------------------
+# Notification avec boutons (geler / quitter)
+# ---------------------------------------------------------------------------
+class ActionCallback(PythonJavaClass):
+    """Reçoit les appuis sur les boutons de la notification."""
+    __javainterfaces__ = ['org/kivy/android/GenericBroadcastReceiverCallback']
+    __javacontext__ = 'app'
+
+    def __init__(self, handler):
+        super().__init__()
+        self.handler = handler
+
+    @java_method('(Landroid/content/Context;Landroid/content/Intent;)V')
+    def onReceive(self, context, intent):
+        try:
+            self.handler(str(intent.getAction()))
+        except Exception as e:
+            print(f"[Freeze] Erreur bouton notification : {e}")
+
+
+class ActionNotifier:
+    def __init__(self, mgr):
+        self.mgr = mgr
+        self.ctx = PythonService.mService
+        self.pkg = str(self.ctx.getPackageName())
+        self.nm = self.ctx.getSystemService(Context.NOTIFICATION_SERVICE)
+        self.act_freeze = self.pkg + '.FREEZE'
+        self.act_quit = self.pkg + '.QUIT'
+        self.frozen = False
+
+        # Écoute des deux actions (récepteur privé à l'appli : obligatoire
+        # de préciser « non exporté » sur Android 14+)
+        self.callback = ActionCallback(self.on_action)  # garder la référence
+        self.receiver = GenericBroadcastReceiver(self.callback)
+        flt = IntentFilter()
+        for act in (self.act_freeze, self.act_quit):
+            flt.addAction(act)
+        if SDK_INT >= 33:
+            self.ctx.registerReceiver(self.receiver, flt, RECEIVER_NOT_EXPORTED)
+        else:
+            self.ctx.registerReceiver(self.receiver, flt)
+
+        if SDK_INT >= 26:
+            channel = NotificationChannel(NOTIF_CHANNEL, cs('Freeze Screen'),
+                                          IMPORTANCE_LOW)
+            self.nm.createNotificationChannel(channel)
+
+    def on_action(self, action):
+        print("[Freeze] bouton notification :", action)
+        if action == self.act_freeze:
+            self.mgr.freeze()
+        elif action == self.act_quit:
+            self.mgr.shutdown()
+
+    def _pending(self, action, code):
+        intent = Intent(action)
+        intent.setPackage(self.pkg)
+        return PendingIntent.getBroadcast(
+            self.ctx, code, intent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE)
+
+    def update(self, frozen=None):
+        if frozen is not None:
+            self.frozen = frozen
+        try:
+            if SDK_INT >= 26:
+                b = NotificationBuilder(self.ctx, NOTIF_CHANNEL)
+            else:
+                b = NotificationBuilder(self.ctx)
+            b.setSmallIcon(self.ctx.getApplicationInfo().icon)
+            b.setContentTitle(cs('Freeze Screen'))
+            b.setContentText(cs(
+                'Écran gelé : maintiens les deux coins pour dégeler'
+                if self.frozen else 'Touche « pause » pour geler l\'écran'))
+            b.setOngoing(True)
+            b.setShowWhen(False)
+            # deux icônes d'action : pause = geler, marche/arrêt = quitter
+            b.addAction(RDrawable.ic_media_pause, cs('Geler'),
+                        self._pending(self.act_freeze, 1))
+            b.addAction(RDrawable.ic_lock_power_off, cs('Quitter'),
+                        self._pending(self.act_quit, 2))
+            try:
+                # affichage compact avec les deux icônes, comme un lecteur
+                style = autoclass('android.app.Notification$MediaStyle')()
+                style.setShowActionsInCompactView([0, 1])
+                b.setStyle(style)
+            except Exception as e:
+                print(f"[Freeze] Style compact indisponible : {e}")
+            self.nm.notify(NOTIF_ID, b.build())
+        except Exception as e:
+            print(f"[Freeze] Notification à boutons impossible : {e}")
+
+
+_notifier = None
+
+
+def _notify_state(frozen):
+    if _notifier is not None:
+        _notifier.update(frozen)
 
 
 def main():
-    global _handler
+    global _handler, _notifier
     _handler = Handler(Looper.getMainLooper())
     mgr = OverlayManager()
     print("[Freeze] Service démarré")
-    if mgr.has_permission():
-        mgr.arm()
-    else:
+    try:
+        _notifier = ActionNotifier(mgr)
+        _notifier.update(False)
+        # python-for-android peut reposter sa notification simple juste après
+        # le démarrage : on repasse par-dessus quelques secondes plus tard
+        t = threading.Timer(3.0, lambda: _notifier.update())
+        t.daemon = True
+        t.start()
+    except Exception as e:
+        print(f"[Freeze] Boutons de notification indisponibles : {e}")
+    if not mgr.has_permission():
         print("[Freeze] Permission d'affichage par-dessus les autres apps "
-              "manquante : bouton GELER non affiché")
+              "manquante : le gel ne pourra pas s'afficher")
     while True:
         time.sleep(1)
 
