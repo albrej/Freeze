@@ -371,7 +371,7 @@ class ActionNotifier:
             cv = Canvas(bmp)
             p = Paint()
             p.setAntiAlias(True)
-            p.setARGB(255, 255, 255, 255)  # setColor(int) serait pris pour setColor(long)
+            p.setARGB(255, 30, 136, 229)  # bleu #1E88E5 (setColor(int) serait pris pour setColor(long))
             p.setStyle(Style.STROKE)
             p.setStrokeCap(Cap.ROUND)
             p.setStrokeWidth(8.0)
