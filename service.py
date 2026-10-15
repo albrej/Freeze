@@ -373,7 +373,7 @@ class ActionNotifier:
             cv = Canvas(bmp)
             p = Paint()
             p.setAntiAlias(True)
-            p.setColor(argb(self.ICE_BLUE))
+            p.setARGB(255, 33, 150, 243)  # setColor(int) serait pris pour setColor(long)
             p.setStyle(Style.STROKE)
             p.setStrokeCap(Cap.ROUND)
             p.setStrokeWidth(8.0)
