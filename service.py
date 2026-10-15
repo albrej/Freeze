@@ -53,9 +53,6 @@ Uri = autoclass('android.net.Uri')
 RECEIVER_NOT_EXPORTED = 4
 IMPORTANCE_LOW = 2
 
-# Couleur des icônes d'action de la notification (ici : bleu #1E88E5).
-ICON_ARGB = (255, 30, 136, 229)
-
 
 def cs(text):
     """Chaîne Python -> java.lang.CharSequence (pyjnius ne le fait pas seul)."""
@@ -374,8 +371,7 @@ class ActionNotifier:
             cv = Canvas(bmp)
             p = Paint()
             p.setAntiAlias(True)
-            # Icônes en bleu (setColor(int) serait pris pour setColor(long))
-            p.setARGB(*ICON_ARGB)
+            p.setARGB(255, 255, 255, 255)  # setColor(int) serait pris pour setColor(long)
             p.setStyle(Style.STROKE)
             p.setStrokeCap(Cap.ROUND)
             p.setStrokeWidth(8.0)
@@ -424,24 +420,15 @@ class ActionNotifier:
         if icon is None and kind not in self._icons:
             icon = self._icons[kind] = self._bitmap_icon(kind)
         if icon is not None:
-            # L'icône dessinée existe : on construit l'action avec le
-            # constructeur Notification$Action(Icon, CharSequence,
-            # PendingIntent) (API 23+), puis on l'ajoute via la surcharge
-            # addAction(Action) — les autres surcharges ne sont pas exposées
-            # par pyjnius sur cet appareil.
             try:
-                NAction = autoclass('android.app.Notification$Action')
-                action = NAction(icon, cs(label), pending)
-                builder.addAction(action)
-                print(f"[Freeze] Action '{kind}' : icône dessinée utilisée")
+                ab = autoclass('android.app.Notification$Action$Builder')(
+                    icon, cs(label), pending)
+                builder.addAction(ab.build())
                 return
             except Exception as e:
-                print(f"[Freeze] Action(Icon,..) impossible ({kind}) : {e}")
-        else:
-            print(f"[Freeze] Action '{kind}' : icône dessinée indisponible, "
-                  f"icône système utilisée")
+                print(f"[Freeze] Action à icône dessinée impossible : {e}")
         builder.addAction(fallback_res, cs(label), pending)
-        
+
     def update(self, frozen=None):
         if frozen is not None:
             self.frozen = frozen
@@ -462,9 +449,6 @@ class ActionNotifier:
             b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
-            # Teinte de la vue compacte (fond) — les icônes dessinées en bleu
-            # dans _bitmap_icon() restent bleues quoi qu'il arrive.
-            b.setColor(argb(0xFF1E88E5))
             # trois icônes d'action : pause = geler, réglages = permission,
             # marche/arrêt = quitter
             self._add_action(b, 'freeze', RDrawable.ic_media_pause, 'Geler',
