@@ -319,9 +319,28 @@ class ActionNotifier:
     def on_action(self, action):
         print("[Freeze] bouton notification :", action)
         if action == self.act_freeze:
+            self.collapse_shade()
             self.mgr.freeze()
         elif action == self.act_quit:
             self.mgr.shutdown()
+
+    def collapse_shade(self):
+        """Replie le volet de notifications (nécessite la permission
+        EXPAND_STATUS_BAR déclarée dans buildozer.spec)."""
+        try:
+            sb = self.ctx.getSystemService('statusbar')
+            method = sb.getClass().getMethod('collapsePanels')
+            try:
+                method.invoke(sb)
+            except Exception:
+                method.invoke(sb, [])
+            return
+        except Exception as e:
+            print(f"[Freeze] Repli du volet (statusbar) impossible : {e}")
+        try:
+            self.ctx.sendBroadcast(Intent('android.intent.action.CLOSE_SYSTEM_DIALOGS'))
+        except Exception as e:
+            print(f"[Freeze] Repli du volet (broadcast) impossible : {e}")
 
     def _pending(self, action, code):
         intent = Intent(action)
@@ -359,10 +378,11 @@ class ActionNotifier:
             b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
-            # bleu glacé : teinte des icônes et du nom de l'appli
+            # fond bleu glacé : le système en déduit des icônes claires,
+            # au lieu de la teinte rosée imposée par défaut
             try:
-                b.setColor(argb(0xFF29B6F6))
-                b.setColorized(False)
+                b.setColor(argb(0xFF1E88E5))
+                b.setColorized(True)
             except Exception as e:
                 print(f"[Freeze] Couleur de notification impossible : {e}")
             # trois icônes d'action : pause = geler, réglages = permission,
