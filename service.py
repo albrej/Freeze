@@ -424,20 +424,24 @@ class ActionNotifier:
         if icon is None and kind not in self._icons:
             icon = self._icons[kind] = self._bitmap_icon(kind)
         if icon is not None:
-            # Piste 2 : on évite Notification$Action$Builder (qui résout mal
-            # ses surcharges via pyjnius) en passant directement par la
-            # variante addAction(Icon, CharSequence, PendingIntent) (API 23+).
+            # L'icône dessinée existe : on construit l'action avec le
+            # constructeur Notification$Action(Icon, CharSequence,
+            # PendingIntent) (API 23+), puis on l'ajoute via la surcharge
+            # addAction(Action) — les autres surcharges ne sont pas exposées
+            # par pyjnius sur cet appareil.
             try:
-                builder.addAction(icon, cs(label), pending)
+                NAction = autoclass('android.app.Notification$Action')
+                action = NAction(icon, cs(label), pending)
+                builder.addAction(action)
                 print(f"[Freeze] Action '{kind}' : icône dessinée utilisée")
                 return
             except Exception as e:
-                print(f"[Freeze] addAction(Icon,...) impossible ({kind}) : {e}")
+                print(f"[Freeze] Action(Icon,..) impossible ({kind}) : {e}")
         else:
             print(f"[Freeze] Action '{kind}' : icône dessinée indisponible, "
                   f"icône système utilisée")
         builder.addAction(fallback_res, cs(label), pending)
-
+        
     def update(self, frozen=None):
         if frozen is not None:
             self.frozen = frozen
