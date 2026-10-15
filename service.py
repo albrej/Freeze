@@ -379,18 +379,30 @@ class ActionNotifier:
             p.setStrokeWidth(8.0)
             c = size / 2
             if kind == 'freeze':
-                # flocon : 3 branches avec petites barbes
+                # flocon : 3 branches (les barbes sont facultatives)
                 import math
                 r = 36.0
+                branches = []
                 for k in range(3):
-                    a = math.radians(90 + 60 * k)
-                    dx, dy = r * math.cos(a), r * math.sin(a)
-                    cv.drawLine(c - dx, c - dy, c + dx, c + dy, p)
-                    for sgn in (1, -1):
-                        bx, by = c + sgn * dx * 0.62, c + sgn * dy * 0.62
-                        for off in (60, -60):
-                            b = a + math.radians(off) + (math.pi if sgn < 0 else 0)
-                            cv.drawLine(bx, by, bx + 12 * math.cos(b), by + 12 * math.sin(b), p)
+                    ang = math.radians(90 + 60 * k)
+                    branches.append((ang, r * math.cos(ang), r * math.sin(ang)))
+                for ang, dx, dy in branches:
+                    cv.drawLine(float(c - dx), float(c - dy),
+                                float(c + dx), float(c + dy), p)
+                try:
+                    for ang, dx, dy in branches:
+                        for sgn in (1.0, -1.0):
+                            bx = c + sgn * dx * 0.62
+                            by = c + sgn * dy * 0.62
+                            for off in (60.0, -60.0):
+                                t = ang + math.radians(off)
+                                if sgn < 0:
+                                    t += math.pi
+                                cv.drawLine(float(bx), float(by),
+                                            float(bx + 12.0 * math.cos(t)),
+                                            float(by + 12.0 * math.sin(t)), p)
+                except BaseException as e:
+                    print(f"[Freeze] Barbes du flocon ignorées : {e}")
             elif kind == 'permission':
                 # coche dans un cercle
                 cv.drawCircle(c, c, 38.0, p)
