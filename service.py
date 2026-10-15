@@ -299,6 +299,7 @@ class ActionNotifier:
         self.act_freeze = self.pkg + '.FREEZE'
         self.act_quit = self.pkg + '.QUIT'
         self.frozen = False
+        self._icons = {}  # icônes dessinées (créées une fois)
 
         # Écoute des deux actions (récepteur privé à l'appli : obligatoire
         # de préciser « non exporté » sur Android 14+)
@@ -352,6 +353,72 @@ class ActionNotifier:
             self.ctx, 3, intent,
             PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE)
 
+    # ---------- Icônes dessinées (bleu glacé) ----------
+    ICE_BLUE = 0xFF2196F3
+
+    def _bitmap_icon(self, kind):
+        """Dessine une icône 96x96 en bleu et la renvoie en android.graphics.drawable.Icon.
+        Renvoie None en cas d'échec (on utilisera alors l'icône système)."""
+        try:
+            Bitmap = autoclass('android.graphics.Bitmap')
+            Config = autoclass('android.graphics.Bitmap$Config')
+            Canvas = autoclass('android.graphics.Canvas')
+            Paint = autoclass('android.graphics.Paint')
+            Style = autoclass('android.graphics.Paint$Style')
+            Cap = autoclass('android.graphics.Paint$Cap')
+            RectF = autoclass('android.graphics.RectF')
+            Icon = autoclass('android.graphics.drawable.Icon')
+            size = 96.0
+            bmp = Bitmap.createBitmap(96, 96, Config.ARGB_8888)
+            cv = Canvas(bmp)
+            p = Paint()
+            p.setAntiAlias(True)
+            p.setColor(argb(self.ICE_BLUE))
+            p.setStyle(Style.STROKE)
+            p.setStrokeCap(Cap.ROUND)
+            p.setStrokeWidth(8.0)
+            c = size / 2
+            if kind == 'freeze':
+                # flocon : 3 branches avec petites barbes
+                import math
+                r = 36.0
+                for k in range(3):
+                    a = math.radians(90 + 60 * k)
+                    dx, dy = r * math.cos(a), r * math.sin(a)
+                    cv.drawLine(c - dx, c - dy, c + dx, c + dy, p)
+                    for sgn in (1, -1):
+                        bx, by = c + sgn * dx * 0.62, c + sgn * dy * 0.62
+                        for off in (60, -60):
+                            b = a + math.radians(off) + (math.pi if sgn < 0 else 0)
+                            cv.drawLine(bx, by, bx + 12 * math.cos(b), by + 12 * math.sin(b), p)
+            elif kind == 'permission':
+                # coche dans un cercle
+                cv.drawCircle(c, c, 38.0, p)
+                cv.drawLine(28.0, 50.0, 43.0, 64.0, p)
+                cv.drawLine(43.0, 64.0, 69.0, 34.0, p)
+            else:
+                # bouton marche/arrêt
+                cv.drawArc(RectF(18.0, 20.0, 78.0, 80.0), -60.0, 300.0, False, p)
+                cv.drawLine(c, 10.0, c, 48.0, p)
+            return Icon.createWithBitmap(bmp)
+        except Exception as e:
+            print(f"[Freeze] Icône dessinée impossible ({kind}) : {e}")
+            return None
+
+    def _add_action(self, builder, kind, fallback_res, label, pending):
+        icon = self._icons.get(kind)
+        if icon is None and kind not in self._icons:
+            icon = self._icons[kind] = self._bitmap_icon(kind)
+        if icon is not None:
+            try:
+                ab = autoclass('android.app.Notification$Action$Builder')(
+                    icon, cs(label), pending)
+                builder.addAction(ab.build())
+                return
+            except Exception as e:
+                print(f"[Freeze] Action à icône dessinée impossible : {e}")
+        builder.addAction(fallback_res, cs(label), pending)
+
     def update(self, frozen=None):
         if frozen is not None:
             self.frozen = frozen
@@ -379,12 +446,12 @@ class ActionNotifier:
                 print(f"[Freeze] Couleur de notification impossible : {e}")
             # trois icônes d'action : pause = geler, réglages = permission,
             # marche/arrêt = quitter
-            b.addAction(RDrawable.ic_media_pause, cs('Geler'),
-                        self._pending_freeze())
-            b.addAction(RDrawable.ic_menu_manage, cs('Permission'),
-                        self._pending_permission())
-            b.addAction(RDrawable.ic_lock_power_off, cs('Quitter'),
-                        self._pending(self.act_quit, 2))
+            self._add_action(b, 'freeze', RDrawable.ic_media_pause, 'Geler',
+                             self._pending_freeze())
+            self._add_action(b, 'permission', RDrawable.ic_menu_manage,
+                             'Permission', self._pending_permission())
+            self._add_action(b, 'quit', RDrawable.ic_lock_power_off, 'Quitter',
+                             self._pending(self.act_quit, 2))
             try:
                 # affichage compact avec les deux icônes, comme un lecteur
                 style = autoclass('android.app.Notification$MediaStyle')()
