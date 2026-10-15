@@ -449,6 +449,9 @@ class ActionNotifier:
             b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
+            # Teinte les icônes d'action (gel/permission/quitter) en bleu
+            # au lieu de la couleur d'accentuation pourpre du système
+            b.setColor(argb(0xFF1E88E5))
             # trois icônes d'action : pause = geler, réglages = permission,
             # marche/arrêt = quitter
             self._add_action(b, 'freeze', RDrawable.ic_media_pause, 'Geler',
