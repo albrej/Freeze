@@ -353,11 +353,9 @@ class ActionNotifier:
             self.ctx, 3, intent,
             PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE)
 
-    # ---------- Icônes dessinées (bleu glacé) ----------
-    ICE_BLUE = 0xFF2196F3
-
+    # ---------- Icônes dessinées ----------
     def _bitmap_icon(self, kind):
-        """Dessine une icône 96x96 en bleu et la renvoie en android.graphics.drawable.Icon.
+        """Dessine une icône 96x96 et la renvoie en android.graphics.drawable.Icon.
         Renvoie None en cas d'échec (on utilisera alors l'icône système)."""
         try:
             Bitmap = autoclass('android.graphics.Bitmap')
@@ -373,7 +371,7 @@ class ActionNotifier:
             cv = Canvas(bmp)
             p = Paint()
             p.setAntiAlias(True)
-            p.setARGB(255, 33, 150, 243)  # setColor(int) serait pris pour setColor(long)
+            p.setARGB(255, 255, 255, 255)  # setColor(int) serait pris pour setColor(long)
             p.setStyle(Style.STROKE)
             p.setStrokeCap(Cap.ROUND)
             p.setStrokeWidth(8.0)
@@ -451,11 +449,6 @@ class ActionNotifier:
             b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
-            # couleur d'accent bleu glacé (nom de l'appli, petite icône)
-            try:
-                b.setColor(argb(0xFF29B6F6))
-            except Exception as e:
-                print(f"[Freeze] Couleur de notification impossible : {e}")
             # trois icônes d'action : pause = geler, réglages = permission,
             # marche/arrêt = quitter
             self._add_action(b, 'freeze', RDrawable.ic_media_pause, 'Geler',
@@ -471,7 +464,6 @@ class ActionNotifier:
                     # méthode à arguments variables (int...) : entiers séparés
                     style.setShowActionsInCompactView(0, 1, 2)
                 except Exception:
-                    from jnius import cast as _cast  # noqa: F401
                     IntArr = autoclass('java.lang.reflect.Array')
                     arr = IntArr.newInstance(autoclass('java.lang.Integer').TYPE, 3)
                     IntArr.setInt(arr, 0, 0)
