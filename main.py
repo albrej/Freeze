@@ -114,6 +114,7 @@ class FreezeApp(App):
         self.ctrl = None
         self.last_start = 0.0
         self.asked_notifications = False
+        self.asked_overlay = False
         return Widget()
 
     def on_start(self):
@@ -153,6 +154,12 @@ class FreezeApp(App):
                 self.last_start = now
                 if not self.ctrl.start():
                     return
+        # Permission d'affichage absente : on ouvre directement l'écran
+        # Android qui permet de l'accorder (une seule fois par lancement).
+        if not self.ctrl.has_permission() and not self.asked_overlay:
+            self.asked_overlay = True
+            self.ctrl.ask_permission()
+            return  # au retour, on_resume relance auto_start et masque la fenêtre
         Clock.schedule_once(lambda dt: self.ctrl.hide_window(), 0.3)
 
 

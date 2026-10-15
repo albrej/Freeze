@@ -359,6 +359,12 @@ class ActionNotifier:
             b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
+            # bleu glacé : teinte des icônes et du nom de l'appli
+            try:
+                b.setColor(argb(0xFF29B6F6))
+                b.setColorized(False)
+            except Exception as e:
+                print(f"[Freeze] Couleur de notification impossible : {e}")
             # trois icônes d'action : pause = geler, réglages = permission,
             # marche/arrêt = quitter
             b.addAction(RDrawable.ic_media_pause, cs('Geler'),
