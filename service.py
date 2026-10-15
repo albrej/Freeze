@@ -327,20 +327,21 @@ class ActionNotifier:
     def collapse_shade(self):
         """Replie le volet de notifications (nécessite la permission
         EXPAND_STATUS_BAR déclarée dans buildozer.spec)."""
-        try:
-            sb = self.ctx.getSystemService('statusbar')
-            method = sb.getClass().getMethod('collapsePanels')
+        # Exécuté dans un thread à part : une erreur JNI dans la fonction
+        # appelée par la notification ferait tomber tout le processus.
+        import threading
+
+        def work():
             try:
-                method.invoke(sb)
-            except Exception:
-                method.invoke(sb, [])
-            return
-        except Exception as e:
-            print(f"[Freeze] Repli du volet (statusbar) impossible : {e}")
-        try:
-            self.ctx.sendBroadcast(Intent('android.intent.action.CLOSE_SYSTEM_DIALOGS'))
-        except Exception as e:
-            print(f"[Freeze] Repli du volet (broadcast) impossible : {e}")
+                from jnius import cast
+                svc = self.ctx.getSystemService('statusbar')
+                sb = cast('android.app.StatusBarManager', svc)
+                sb.collapsePanels()
+                print("[Freeze] Volet replié")
+            except BaseException as e:
+                print(f"[Freeze] Repli du volet impossible : {e}")
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _pending(self, action, code):
         intent = Intent(action)
@@ -378,11 +379,9 @@ class ActionNotifier:
             b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
-            # fond bleu glacé : le système en déduit des icônes claires,
-            # au lieu de la teinte rosée imposée par défaut
+            # couleur d'accent bleu glacé (nom de l'appli, petite icône)
             try:
-                b.setColor(argb(0xFF1E88E5))
-                b.setColorized(True)
+                b.setColor(argb(0xFF29B6F6))
             except Exception as e:
                 print(f"[Freeze] Couleur de notification impossible : {e}")
             # trois icônes d'action : pause = geler, réglages = permission,
