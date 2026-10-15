@@ -350,7 +350,16 @@ class ActionNotifier:
             try:
                 # affichage compact avec les deux icônes, comme un lecteur
                 style = autoclass('android.app.Notification$MediaStyle')()
-                style.setShowActionsInCompactView([0, 1])
+                try:
+                    # méthode à arguments variables (int...) : entiers séparés
+                    style.setShowActionsInCompactView(0, 1)
+                except Exception:
+                    from jnius import cast as _cast  # noqa: F401
+                    IntArr = autoclass('java.lang.reflect.Array')
+                    arr = IntArr.newInstance(autoclass('java.lang.Integer').TYPE, 2)
+                    IntArr.setInt(arr, 0, 0)
+                    IntArr.setInt(arr, 1, 1)
+                    style.setShowActionsInCompactView(arr)
                 b.setStyle(style)
             except Exception as e:
                 print(f"[Freeze] Style compact indisponible : {e}")
