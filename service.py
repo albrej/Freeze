@@ -47,6 +47,8 @@ AUTO_UNFREEZE_SECONDS = 0
 NOTIF_ID = 1
 NOTIF_CHANNEL = 'freeze_screen'
 FLAG_IMMUTABLE = 0x04000000
+FLAG_ACTIVITY_NEW_TASK = 0x10000000
+Uri = autoclass('android.net.Uri')
 RECEIVER_NOT_EXPORTED = 4
 IMPORTANCE_LOW = 2
 
@@ -327,6 +329,16 @@ class ActionNotifier:
         return PendingIntent.getBroadcast(
             self.ctx, code, intent, PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE)
 
+    def _pending_permission(self):
+        """Ouvre directement l'écran Android « Afficher par-dessus les autres
+        applis » de Freeze Screen (action de la notification)."""
+        intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + str(self.pkg)))
+        intent.addFlags(FLAG_ACTIVITY_NEW_TASK)
+        return PendingIntent.getActivity(
+            self.ctx, 3, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE)
+
     def update(self, frozen=None):
         if frozen is not None:
             self.frozen = frozen
@@ -337,14 +349,22 @@ class ActionNotifier:
                 b = NotificationBuilder(self.ctx)
             b.setSmallIcon(self.ctx.getApplicationInfo().icon)
             b.setContentTitle(cs('Freeze Screen'))
-            b.setContentText(cs(
-                'Écran gelé : maintiens les deux coins pour dégeler'
-                if self.frozen else 'Touche « pause » pour geler l\'écran'))
+            has_perm = bool(Settings.canDrawOverlays(self.ctx))
+            if self.frozen:
+                text = 'Écran gelé : maintiens les deux coins pour dégeler'
+            elif has_perm:
+                text = 'Touche « pause » pour geler l\'écran'
+            else:
+                text = 'Permission manquante : touche l\'icône réglages'
+            b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
-            # deux icônes d'action : pause = geler, marche/arrêt = quitter
+            # trois icônes d'action : pause = geler, réglages = permission,
+            # marche/arrêt = quitter
             b.addAction(RDrawable.ic_media_pause, cs('Geler'),
                         self._pending(self.act_freeze, 1))
+            b.addAction(RDrawable.ic_menu_manage, cs('Permission'),
+                        self._pending_permission())
             b.addAction(RDrawable.ic_lock_power_off, cs('Quitter'),
                         self._pending(self.act_quit, 2))
             try:
@@ -352,13 +372,14 @@ class ActionNotifier:
                 style = autoclass('android.app.Notification$MediaStyle')()
                 try:
                     # méthode à arguments variables (int...) : entiers séparés
-                    style.setShowActionsInCompactView(0, 1)
+                    style.setShowActionsInCompactView(0, 1, 2)
                 except Exception:
                     from jnius import cast as _cast  # noqa: F401
                     IntArr = autoclass('java.lang.reflect.Array')
-                    arr = IntArr.newInstance(autoclass('java.lang.Integer').TYPE, 2)
+                    arr = IntArr.newInstance(autoclass('java.lang.Integer').TYPE, 3)
                     IntArr.setInt(arr, 0, 0)
                     IntArr.setInt(arr, 1, 1)
+                    IntArr.setInt(arr, 2, 2)
                     style.setShowActionsInCompactView(arr)
                 b.setStyle(style)
             except Exception as e:

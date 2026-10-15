@@ -17,11 +17,8 @@ if IS_ANDROID:
 # --- Imports Kivy ---
 from kivy.app import App
 from kivy.clock import Clock, mainthread
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.widget import Widget
 from kivy.utils import platform
-from kivy.metrics import dp
 
 if platform == 'android':
     from jnius import autoclass
@@ -109,36 +106,21 @@ class ServiceController:
 
 
 class FreezeApp(App):
+    """Aucune fenêtre : l'appli démarre le service puis se masque aussitôt.
+    La permission d'affichage se donne via l'icône « Permission » de la
+    notification."""
+
     def build(self):
         self.ctrl = None
         self.last_start = 0.0
         self.asked_notifications = False
-        layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
-
-        self.status = Label(text="Freeze Screen", font_size='22sp',
-                            halign='center')
-        layout.add_widget(self.status)
-
-        self.btn_perm = Button(
-            text="Accorder la permission\nà l'appli \"Freeze Screen\"",
-            halign='center', valign='middle',
-            background_normal='', background_down='',
-            background_color=(0.2, 0.6, 1.0, 1), size_hint=(1, 0.25))
-        self.btn_perm.bind(
-            size=lambda b, sz: setattr(b, 'text_size', (sz[0] - dp(20), None)))
-        self.btn_perm.bind(on_press=self.on_ask_permission)
-        layout.add_widget(self.btn_perm)
-
-        return layout
+        return Widget()
 
     def on_start(self):
         if platform != 'android':
-            self.status.text = ("Version PC : la fonction gel\n"
-                               "ne fonctionne que sur Android.")
-            self.btn_perm.disabled = True
             return
         self.ctrl = ServiceController()
-        Clock.schedule_once(self.auto_start, 0.3)
+        Clock.schedule_once(self.auto_start, 0.1)
 
     def on_pause(self):
         return True
@@ -146,52 +128,32 @@ class FreezeApp(App):
     def on_resume(self):
         if self.ctrl is not None:
             self.ctrl.exclude_from_recents(False)
-            Clock.schedule_once(self.auto_start, 0.3)
+            Clock.schedule_once(self.auto_start, 0.1)
 
     @mainthread
     def _after_notif_request(self, *args):
         self.auto_start()
 
     def auto_start(self, *args):
-        """Permission OK -> service lancé et fenêtre fermée ; sinon bouton."""
         if self.ctrl is None:
             return
-        if not self.ctrl.has_permission():
-            self.status.text = "Freeze Screen\n\nPermission manquante"
-            self.btn_perm.disabled = False
-            return
-
-        self.btn_perm.disabled = True
-
         # Android 13+ : sans cette autorisation, pas d'icône dans la barre
-        if not self.ctrl.notifications_ok():
-            if not self.asked_notifications:
-                self.asked_notifications = True
-                try:
-                    request_permissions([NOTIF_PERMISSION],
-                                        lambda *a: self._after_notif_request())
-                    return
-                except Exception as e:
-                    print(f"[Freeze] Demande de notifications impossible : {e}")
-            self.status.text = ("Freeze Screen\n\nNotifications désactivées :\n"
-                               "activez-les pour voir l'icône")
-            return
+        if not self.ctrl.notifications_ok() and not self.asked_notifications:
+            self.asked_notifications = True
+            try:
+                request_permissions([NOTIF_PERMISSION],
+                                    lambda *a: self._after_notif_request())
+                return
+            except Exception as e:
+                print(f"[Freeze] Demande de notifications impossible : {e}")
 
         if not self.ctrl.is_running():
             now = time.time()
             if now - self.last_start > START_DEBOUNCE:
                 self.last_start = now
                 if not self.ctrl.start():
-                    self.status.text = ("Freeze Screen\n\n"
-                                        "Le service n'a pas pu démarrer\n"
-                                        "(voir adb logcat -s python)")
                     return
-        self.status.text = "Freeze Screen"
-        Clock.schedule_once(lambda dt: self.ctrl.hide_window(), 0.6)
-
-    def on_ask_permission(self, *args):
-        if self.ctrl is not None:
-            self.ctrl.ask_permission()
+        Clock.schedule_once(lambda dt: self.ctrl.hide_window(), 0.3)
 
 
 if __name__ == '__main__':
