@@ -53,6 +53,9 @@ Uri = autoclass('android.net.Uri')
 RECEIVER_NOT_EXPORTED = 4
 IMPORTANCE_LOW = 2
 
+# Couleur des icônes d'action de la notification (ici : bleu #1E88E5).
+ICON_ARGB = (255, 30, 136, 229)
+
 
 def cs(text):
     """Chaîne Python -> java.lang.CharSequence (pyjnius ne le fait pas seul)."""
@@ -371,7 +374,8 @@ class ActionNotifier:
             cv = Canvas(bmp)
             p = Paint()
             p.setAntiAlias(True)
-            p.setARGB(255, 30, 136, 229)  # bleu #1E88E5 (setColor(int) serait pris pour setColor(long))
+            # Icônes en bleu (setColor(int) serait pris pour setColor(long))
+            p.setARGB(*ICON_ARGB)
             p.setStyle(Style.STROKE)
             p.setStrokeCap(Cap.ROUND)
             p.setStrokeWidth(8.0)
@@ -420,13 +424,18 @@ class ActionNotifier:
         if icon is None and kind not in self._icons:
             icon = self._icons[kind] = self._bitmap_icon(kind)
         if icon is not None:
+            # Piste 2 : on évite Notification$Action$Builder (qui résout mal
+            # ses surcharges via pyjnius) en passant directement par la
+            # variante addAction(Icon, CharSequence, PendingIntent) (API 23+).
             try:
-                ab = autoclass('android.app.Notification$Action$Builder')(
-                    icon, cs(label), pending)
-                builder.addAction(ab.build())
+                builder.addAction(icon, cs(label), pending)
+                print(f"[Freeze] Action '{kind}' : icône dessinée utilisée")
                 return
             except Exception as e:
-                print(f"[Freeze] Action à icône dessinée impossible : {e}")
+                print(f"[Freeze] addAction(Icon,...) impossible ({kind}) : {e}")
+        else:
+            print(f"[Freeze] Action '{kind}' : icône dessinée indisponible, "
+                  f"icône système utilisée")
         builder.addAction(fallback_res, cs(label), pending)
 
     def update(self, frozen=None):
@@ -449,8 +458,8 @@ class ActionNotifier:
             b.setContentText(cs(text))
             b.setOngoing(True)
             b.setShowWhen(False)
-            # Teinte les icônes d'action (gel/permission/quitter) en bleu
-            # au lieu de la couleur d'accentuation pourpre du système
+            # Teinte de la vue compacte (fond) — les icônes dessinées en bleu
+            # dans _bitmap_icon() restent bleues quoi qu'il arrive.
             b.setColor(argb(0xFF1E88E5))
             # trois icônes d'action : pause = geler, réglages = permission,
             # marche/arrêt = quitter
