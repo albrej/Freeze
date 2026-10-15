@@ -23,6 +23,7 @@ from kivy.utils import platform
 if platform == 'android':
     from jnius import autoclass
     from android.permissions import request_permissions, check_permission
+    from android import activity as android_activity
 
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
     Settings = autoclass('android.provider.Settings')
@@ -89,6 +90,22 @@ class ServiceController:
             print(f"[Freeze] Démarrage du service impossible : {e}")
             return False
 
+    # ---------- Ordre de gel (bouton « Geler » de la notification) ----------
+    def handle_intent(self, intent):
+        """Si l'appli a été ouverte par le bouton « Geler », renvoie l'ordre
+        au service (récepteur interne à l'appli)."""
+        try:
+            if intent is not None and \
+                    str(intent.getAction()) == self.package + '.FREEZE_NOW':
+                fwd = Intent(self.package + '.FREEZE')
+                fwd.setPackage(self.package)
+                self.activity.sendBroadcast(fwd)
+                print("[Freeze] ordre de gel transmis au service")
+                return True
+        except Exception as e:
+            print(f"[Freeze] Intent illisible : {e}")
+        return False
+
     # ---------- Fenêtre ----------
     def exclude_from_recents(self, excluded):
         try:
@@ -121,7 +138,14 @@ class FreezeApp(App):
         if platform != 'android':
             return
         self.ctrl = ServiceController()
+        android_activity.bind(on_new_intent=self.on_new_intent)
+        self.ctrl.handle_intent(self.ctrl.activity.getIntent())
         Clock.schedule_once(self.auto_start, 0.1)
+
+    def on_new_intent(self, intent):
+        # appli déjà lancée, rouverte par le bouton « Geler »
+        if self.ctrl is not None:
+            self.ctrl.handle_intent(intent)
 
     def on_pause(self):
         return True

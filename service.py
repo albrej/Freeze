@@ -48,6 +48,7 @@ NOTIF_ID = 1
 NOTIF_CHANNEL = 'freeze_screen'
 FLAG_IMMUTABLE = 0x04000000
 FLAG_ACTIVITY_NEW_TASK = 0x10000000
+FLAG_ACTIVITY_SINGLE_TOP = 0x20000000
 Uri = autoclass('android.net.Uri')
 RECEIVER_NOT_EXPORTED = 4
 IMPORTANCE_LOW = 2
@@ -319,29 +320,21 @@ class ActionNotifier:
     def on_action(self, action):
         print("[Freeze] bouton notification :", action)
         if action == self.act_freeze:
-            self.collapse_shade()
             self.mgr.freeze()
         elif action == self.act_quit:
             self.mgr.shutdown()
 
-    def collapse_shade(self):
-        """Replie le volet de notifications (nécessite la permission
-        EXPAND_STATUS_BAR déclarée dans buildozer.spec)."""
-        # Exécuté dans un thread à part : une erreur JNI dans la fonction
-        # appelée par la notification ferait tomber tout le processus.
-        import threading
-
-        def work():
-            try:
-                from jnius import cast
-                svc = self.ctx.getSystemService('statusbar')
-                sb = cast('android.app.StatusBarManager', svc)
-                sb.collapsePanels()
-                print("[Freeze] Volet replié")
-            except BaseException as e:
-                print(f"[Freeze] Repli du volet impossible : {e}")
-
-        threading.Thread(target=work, daemon=True).start()
+    def _pending_freeze(self):
+        """« Geler » ouvre brièvement l'appli : Android replie alors le volet
+        de notifications. L'appli (main.py) renvoie aussitôt l'ordre de gel
+        au service puis se masque."""
+        intent = Intent()
+        intent.setClassName(self.pkg, 'org.kivy.android.PythonActivity')
+        intent.setAction(self.pkg + '.FREEZE_NOW')
+        intent.addFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            self.ctx, 4, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE)
 
     def _pending(self, action, code):
         intent = Intent(action)
@@ -387,7 +380,7 @@ class ActionNotifier:
             # trois icônes d'action : pause = geler, réglages = permission,
             # marche/arrêt = quitter
             b.addAction(RDrawable.ic_media_pause, cs('Geler'),
-                        self._pending(self.act_freeze, 1))
+                        self._pending_freeze())
             b.addAction(RDrawable.ic_menu_manage, cs('Permission'),
                         self._pending_permission())
             b.addAction(RDrawable.ic_lock_power_off, cs('Quitter'),
